@@ -5,8 +5,14 @@ yield stress, toughness (area under curve), ultimate tensile strength, breaking 
 This program aims to speed up rate at which stress-strain data can be analysed.
 
 Setup:
-1. Install python 3
-2. Install modules: scipy, statsmodels, numpy, matplotlib, PyQt4 (instal SIP first)
+1. Install python 3:
+>Get it here: https://www.python.org/downloads/
+2. Install modules: scipy, statsmodels, numpy, matplotlib, PyQt4 (install SIP first)
+>How to*: https://programminghistorian.org/lessons/installing-python-modules-pip#mac-and-linux-instructions
+*If pip install method does not work (using Windows), download releavant module from here: http://www.lfd.uci.edu/~gohlke/pythonlibs/
+Then navigate to downloads folder in command prompt using: cd downloadsFolderPath
+Then type: py -m pip install downloadedFileName.whl
+
 
 Using program:
 1. Run python file
