@@ -1,0 +1,64 @@
+The configuration options have default values that should be suitable for most data, however they can be 
+fine-tuned for increased accuracy or speed, or to suit your specific use case.
+For example, if you have relatively few data points (e.g. only a few hundred) it may be necessary to adjust
+some of these parameters.
+
+What to the different configuration options mean?
+
+Output:
+1. 'Decimal places' - this determines the number of decimal places that the results data will be shown to.
+2. 'Stress at strain' - This option allows you to find the stress on the curve at a certain strain, offset by a
+line with gradient equal to the elastic modulus. Enter a strain value (in %) within the range of your data.
+Note: currently, if this offset line crosses the curve more tha once then it will only display one intersection
+point.
+
+Elastic Modulus:
+1. 'Initial error region size (%)' - This value denotes the strain at which the elastic modulus will start to 
+be calculated, allowing the very beginning of the stress-strain curve to be ignored as this region may present
+inaccuracies.
+2. 'Calculation step' - When finding the elastic modulus the program starts at the end of 'Initial error region
+size' strain value and continues along stress-strain curve in increments of 'Calculation step'. This value must
+be an integer. Increase this value for faster, but less accurate elastic modulus determination.
+3. 'Critical r_squared value' - The program continues selecting points along stress-strain curve until the 
+r_squared value of the selected data points drops below this critical value. Therefore this value must be 
+between 0 and 1, with lower values, generally, decreasing accuracy of elastic modulus. Too high a value will
+also decrease accuracy, as it ignores v. small deviations of data points from straight line in inital straight
+line region, resulting in a small range of data values being selected for the calculation.
+4. 'Steps to wait after initial hit' - When selecting data points along straight line region, when the r_squared
+value intially rises above the critical r_squared value, it is very possible that it may dip below this critical
+value soon after. This value denotes the number of additional data points that must be selected before dropping
+below the critical r_squared value would signify the end of the straight line. Must be an integer.
+5. 'Backtrack value' - When r_squared drops below critical value, this value of selected data points will be
+removed from the end of the selection before the gradient of the best fit line for these data points is 
+calculated, as it is likely that the data has begun to curve slightly before the program detects it, so this
+improves accuracy. Must be an integer.
+
+(Yield) Stress Determination:
+1. 'Stress accuracy' - Determines how many divisions there are on offset line that intersects stress-strain 
+curve. Number of division per MPa = 1/[this value] E.g. When [this value] = 10, division are 0.0, 0.1, 0.2, 0.3,
+0.4, etc. MPa. Higher value results in greater accuracy, but slower program.
+2. 'Intersection line step size' - Step between values on intersection offset line. E.g. [this value] = 1: 0.0,
+0.1,0.2,etc. MPa; [this value] = 5: 0.0, 0.5, 1.0, etc. MPa. Allows for further fine-tuning of accuracy, but 
+can usually just be left at 1.
+3. 'Low elastic modulus cut-off value (MPa)' - Calculating the (yield) stress at a certain strain is faster when
+the calculated elastic modulus is above this value, as it narrows down the range of data points that the stress
+could possibly be at based on the stress value at specified strain without offset. However, low elastic moduli
+can prevent this method from being valid.
+4. 'High elastic modulus strain field range (%)' - When calculated elastic modulus is above the cut-off value,
+this value denotes the range of strain values (and corresponding stress values) that are considered when looking
+for intersection of offset line with stress-strain curve. Strain range = specified strain value +/- [this value].
+
+Plateau Region:
+(valid for compression tests only)
+1. 'Analysis segment length' - The algorithm for finding the peaks and dips in the plateau region relies on 
+detecting changes in gradient over the selected range of data values. This value determines the number of data 
+points that are selected at once when calculating the gradient of the best fit line through thes data points. A
+lower value allows the program to detect smaller dips and peaks, however you may not want these to be picked up
+and so can increase this value until the number of peaks detected matches what you expect via visual inspection
+of the stress-strain curve.
+2. 'Plateau region defining factor' - Plateau region in this program starts at yield stress and ends when 
+stress value of data points increases above [this value] * yield stress. This value will need to be adjusted if
+data points end only slightly above plateau region.
+
+Note: 'stressStrainAnalyse v0.x.py' must remain in same folder as 'stressStrainAnalyseMain.ui' for program
+to work.
