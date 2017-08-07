@@ -1,6 +1,10 @@
 #Software that takes compression test results as input, analyses it and returns useful information
 #DATAPREP: Copy stress (Mpa) & strain (%) columns from excel file and point to it;
 
+#currently stress at x % strain uses elasticMod slope intersection starting from where original elastic mod slope intersecs
+#x-axis + x %
+#currently put in as either .csv or .txt, as 2 columns of data (strain on left, stress on right), with words at top allowed
+
 import scipy
 import math
 import statsmodels.api as sm
@@ -18,8 +22,9 @@ warnings.filterwarnings("ignore")
 
 
 #Initialize parameters
-outputDecimalPlaces, stressAtCertainStrain, elasticModStart, elasticModFindingStep, rSquaredMin, numOfStepsAfterSquaredMinIsHit, elasticModBacktrackValue = 1, 1, 1, 1, 1, 1, 1
-yieldStressAccuracy, yieldStressFindingStep, lowElasticModulus, highElasticModCuttingRange, plateauAnalyseSegmentLength, plateauRegionDefiningFactor = 1, 1, 1, 1, 1, 1
+#don't change these, for the sake of tests working
+outputDecimalPlaces, stressAtCertainStrain, elasticModStart, elasticModFindingStep, rSquaredMin, numOfStepsAfterSquaredMinIsHit, elasticModBacktrackValue = 3, 40, 0.5, 1, 0.99, 20, 30
+yieldStressAccuracy, yieldStressFindingStep, lowElasticModulus, highElasticModCuttingRange, plateauAnalyseSegmentLength, plateauRegionDefiningFactor = 100, 1, 1, 10, 500, 1.7
 
 def importDataFunc(inputFilePath):
 	with open(r"%s" % (inputFilePath), 'r') as dataFile:
@@ -38,7 +43,7 @@ def importDataFunc(inputFilePath):
 				yList.append(tempList[1])
 			line = dataFile.readline()
 		#turns data into format of xList & yList
-	maxStress = int(max(yList) + 2)
+	maxStress = float(max(yList))
 	return xList, yList, maxStress
 
 def elasticModListGenerate(xInputlist, yInputList): #removes values in data list that are less than specified value, to remove error from beginning of graph when finding elastic modulus
@@ -64,7 +69,7 @@ def findElasticMod(xList, yList): #finds elastic modulus by going along initial 
 	slope, intercept, r_value, p_value, std_error = scipy.stats.linregress(finalxList, finalyList)
 	return slope, intercept, breakValue
 
-def findStressAtCertainStrain(inputxList, inputyList, inputSlope, inputyIntercept, strainValue, maxStress, deltaIndex, elasticMod): #finds stress at certain strain (sloped up from that strain)
+def findStressAtCertainStrain(inputxList, inputyList, inputSlope, inputyIntercept, strainValue, maxStress, deltaIndex): #finds stress at certain strain (sloped up from that strain)
 	#y = mx + c
 	if strainValue > max(inputxList):
 		print("WARNING: Selected strain value is outside range of strain values recorded, so following stress value will not be correct.")
@@ -78,27 +83,41 @@ def findStressAtCertainStrain(inputxList, inputyList, inputSlope, inputyIntercep
 		provVal = 2 * inputyList[deltaIndex]
 		if provVal < maxStress:
 			maxStress = int(2 * inputyList[deltaIndex])
-
-	for yValue in range(deltaIndex,maxStress * yieldStressAccuracy,yieldStressFindingStep): #produces straight line; range function can only step as an integer; starting at deltaIndex means straight line starts at point where 'straightness' of initial line stops
+	for yValue in range(math.floor(inputyList[deltaIndex]), int(maxStress * yieldStressAccuracy),yieldStressFindingStep): #produces straight line; range function can only step as an integer; starting at deltaIndex means straight line starts at point where 'straightness' of initial line stops
 		yValue = yValue / yieldStressAccuracy
 		xValue = (yValue - newLineyIntercept) / inputSlope
 		newLinexList.append(xValue)
 		newLineyList.append(yValue)
 
-	if elasticMod > lowElasticModulus:
+	if inputSlope > lowElasticModulus:
 		if strainValue >= (max(inputxList) - highElasticModCuttingRange - 1): #prevents issues where lots of identical strain values near end mess up indexing (since .index() takes lowest index)
 			cutDownxList = [x for x in inputxList if x > (strainValue - highElasticModCuttingRange)]
-			startingIndex = inputxList.index(cutDownxList[0])
-			cutDownyList = inputyList[startingIndex : len(inputyList) : 1]
+			cutLowList = []
+			for i in inputxList:
+				if i not in cutDownxList:
+					cutLowList.append(i)
+				else:
+					break
+			numBelow = len(cutLowList)
+			startingIndex = numBelow
+			endingIndex = startingIndex + len(cutDownxList) + 1
+			cutDownyList = inputyList[startingIndex : endingIndex - 1 : 1]
+
 		else:
 			cutDownxList = [x for x in inputxList if x > (strainValue - highElasticModCuttingRange) and x < (strainValue + highElasticModCuttingRange)]
-			startingIndex = inputxList.index(cutDownxList[0])
-			endingIndex = inputxList.index(cutDownxList[len(cutDownxList) - 1])
-			cutDownyList = inputyList[startingIndex : endingIndex + 1 : 1]
+			cutLowList = []
+			for i in inputxList:
+				if i not in cutDownxList:
+					cutLowList.append(i)
+				else:
+					break
+			numBelow = len(cutLowList)
+			startingIndex = numBelow
+			endingIndex = startingIndex + len(cutDownxList) + 1
+			cutDownyList = inputyList[startingIndex : endingIndex - 1 : 1]
 		inputxList, inputyList = cutDownxList, cutDownyList
-
 	mainDiffList = []
-	mainDiffListDataIndexes =[]
+	mainDiffListDataIndexes = []
 	for i in range(0,len(newLinexList)): # finds point on data curve that each i is closest to and stores in mainDiffList
 		subDiffList = []
 		for j in range(0,len(inputxList)):
@@ -110,7 +129,6 @@ def findStressAtCertainStrain(inputxList, inputyList, inputSlope, inputyIntercep
 		subMinDiffIndex = subDiffList.index(subMinDiff) #index in main data list is stored in mainDiffListDataIndexes
 		mainDiffList.append(subMinDiff)
 		mainDiffListDataIndexes.append(subMinDiffIndex)
-
 	globalMinimumDifference = min(mainDiffList)
 	globalMinimumDifferenceIndex = mainDiffList.index(globalMinimumDifference)
 	dataCurveIndexyieldPoint = mainDiffListDataIndexes[globalMinimumDifferenceIndex]
@@ -169,21 +187,24 @@ def analysePlateau(xList,yList,yieldStress):
 	if len(peakxValues) != len(dipyValues):
 		returnStringList.append("ATTENTION: NUMBER OF PEAKS AND DIPS DO NOT MATCH. THIS WILL RESULT IN CODE ERROR.\n")
 
-	returnStringList.append("There are %s dips in the plateau region:\n\n" % (str(len(dipxValues))))
+	numDips = str(len(dipxValues))
+	returnStringList.append("There are %s dips in the plateau region:\n\n" % (numDips))
+	deltaStressList = []
+	deltaStrainList = []
 
 	for i in range(0,len(peakxValues)):
 		deltaY = peakyValues[i] - dipyValues[i]
 		deltaX = dipxValues[i] - peakxValues[i]
 
 		returnStringList.append("Difference in stress between peak %s and dip %s is %s MPa\n" % (str(i), str(i), str(round(deltaY, outputDecimalPlaces))))
-		returnStringList.append("Difference in strain between peak %s and dip %s is %s %%\n\n" % (str(i), str(i), str(round(deltaX, outputDecimalPlaces))))
-	return returnStringList
+		deltaStressList.append(str(round(deltaY, outputDecimalPlaces)))
+		deltaStrainList.append(str(round(deltaX, outputDecimalPlaces)))
+	return returnStringList, numDips, deltaStressList, deltaStrainList
 
-def findbreakingStress(yList):
-	value = round(yList[len(yList) - 1], outputDecimalPlaces)
+def findBreakingStress(yList):
+	value = round(yList[-1], outputDecimalPlaces)
 	string = "Sample breaking stress is %s MPa.\n\n" % (str(value))
-	return string
-
+	return string, value
 
 #GUI Stuff
 #Code from: http://pythonforengineers.com/your-first-gui-app-with-python-and-pyqt/
@@ -219,7 +240,7 @@ class MyApp(QtGui.QMainWindow, Ui_MainWindow):
 		self.lowElasticModulusBox.setText("1")
 		self.highElasticModCuttingRangeBox.setText("10")
 
-		self.plateauAnalyseSegmentLengthBox.setText("200")
+		self.plateauAnalyseSegmentLengthBox.setText("400")
 		self.plateauRegionDefiningFactorBox.setText("1.7")
 
 	def runAnalysis(self):
@@ -254,7 +275,7 @@ class MyApp(QtGui.QMainWindow, Ui_MainWindow):
 		totalDeltaIndex = deltaElastic + elasticBreakValue
 
 		elasticModulus = elasticModSlope #(MPa)
-		yieldStress = findStressAtCertainStrain(XoriginalDataList, YoriginalDataList, elasticModSlope, elasticModyIntercept, 0.2, maxDetectableStress, totalDeltaIndex, elasticModSlope) #0.2 because 0.2 % yield stress
+		yieldStress = findStressAtCertainStrain(XoriginalDataList, YoriginalDataList, elasticModSlope, elasticModyIntercept, 0.2, maxDetectableStress, totalDeltaIndex) #0.2 because 0.2 % yield stress
 		UTS = findMaxStress(XoriginalDataList, YoriginalDataList)
 
 
@@ -264,20 +285,39 @@ class MyApp(QtGui.QMainWindow, Ui_MainWindow):
 
 		resultsString +="Sample 0.2 %% yield stress is %s MPa.\n\n" % (str(round(yieldStress,outputDecimalPlaces)))
 
-		stressAtStrainVal = findStressAtCertainStrain(XoriginalDataList, YoriginalDataList, elasticModSlope, elasticModyIntercept, stressAtCertainStrain, maxDetectableStress, totalDeltaIndex, elasticModSlope)
+		stressAtStrainVal = findStressAtCertainStrain(XoriginalDataList, YoriginalDataList, elasticModSlope, elasticModyIntercept, stressAtCertainStrain, maxDetectableStress, totalDeltaIndex)
 		resultsString += "Sample stress at %s %% strain is %s MPa.\n\n" % (str(stressAtCertainStrain),str(round(stressAtStrainVal,outputDecimalPlaces)))
 		
 		resultsString += "Sample UTS (maximum stress) is %s MPa.\n\n" % (str(round(UTS,outputDecimalPlaces)))
 
-		resultsString += "Area under curve is: %s MPa*%%.\n\n" % (str(round(findAreaUnderCurve(XoriginalDataList, YoriginalDataList),outputDecimalPlaces)))
+		areaUnderCurve = findAreaUnderCurve(XoriginalDataList, YoriginalDataList)
+		resultsString += "Area under curve is: %s MPa*%%.\n\n" % (str(round(areaUnderCurve,outputDecimalPlaces)))
 
 		if testType == "Tensile Test":
-			resultsString += findbreakingStress(YoriginalDataList)
+			breakingStressString, breakingStressValue = findBreakingStress(YoriginalDataList)
+			resultsString += breakingStressString
 
 		if testType == "Compression Test":
-			plateauAnalysisStringList = analysePlateau(XoriginalDataList, YoriginalDataList, yieldStress)
+			plateauAnalysisStringList, numPlateauDips, dipDeltaStressList, dipDeltaStrainList = analysePlateau(XoriginalDataList, YoriginalDataList, yieldStress)
 			for i in plateauAnalysisStringList:
 				resultsString += i
+
+		if self.includeCSVCheckBox.isChecked():
+			tempString = ""
+			tempString += str(round(elasticModulus,outputDecimalPlaces)) + ', '
+			tempString += str(round(yieldStress,outputDecimalPlaces)) + ', '
+			tempString += str(round(stressAtStrainVal,outputDecimalPlaces)) + ', '
+			tempString += str(round(UTS,outputDecimalPlaces)) + ', '
+			tempString += str(round(areaUnderCurve,outputDecimalPlaces)) + ', '
+			if testType == "Tensile Test":
+				tempString += breakingStress
+			if testType == 'Compression Test':
+				tempString += numPlateauDips + ', '
+				for i in range(0, len(dipDeltaStressList)):
+					tempString += dipDeltaStressList[i]
+					if i != len(dipDeltaStressList) - 1:
+						tempString += ', '
+			resultsString += tempString
 
 		self.resultsBox.setText(resultsString)
 
@@ -297,7 +337,7 @@ class MyApp(QtGui.QMainWindow, Ui_MainWindow):
 		global testType
 		testType = str(self.testTypeBox.currentText())
 
- 
+
 if __name__ == "__main__":
     app = QtGui.QApplication(sys.argv)
     window = MyApp()
