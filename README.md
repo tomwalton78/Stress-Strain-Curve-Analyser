@@ -15,7 +15,7 @@ Then type: py -m pip install downloadedFileName.whl
 
 
 Using program:
-1. Run python file
+1. Run stressStrainAnalyse_v0_6.py file
 2. Click on browse to select data file
 >Data file must be in csv format, with strain (in %) column on left, stress (in MPa) column on right
 3. Select test type (compression/tensile) from dropdown box
